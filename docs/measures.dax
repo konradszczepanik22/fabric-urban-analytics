@@ -1,0 +1,37 @@
+// --- Mobility ---
+Trips = SUM(FactTaxiDaily[trip_count])
+
+Revenue USD = SUM(FactTaxiDaily[total_amount_usd])
+
+Revenue EUR = SUM(FactTaxiDaily[total_amount_eur])
+
+Avg Fare USD = DIVIDE([Revenue USD], [Trips])
+
+Avg Fare EUR = DIVIDE([Revenue EUR], [Trips])
+
+Avg Distance mi = DIVIDE(SUM(FactTaxiDaily[total_distance_mi]), [Trips])
+
+// --- Air quality (stations inside NYC taxi zones only) ---
+PM25 Avg = CALCULATE(AVERAGE(FactAirQualityDaily[value_avg]), FactAirQualityDaily[parameter] = "pm25", FactAirQualityDaily[zone_id] <> -1)
+
+NO2 Avg = CALCULATE(AVERAGE(FactAirQualityDaily[value_avg]), FactAirQualityDaily[parameter] = "no2", FactAirQualityDaily[zone_id] <> -1)
+
+// --- Economy ---
+USD per EUR = AVERAGE(DimFX[usd_per_eur])
+
+// DimGDP has one row per year and no relationship; the filter is passed from DimDate[year]
+GDP USD = CALCULATE(SUM(DimGDP[gdp_usd]), TREATAS(VALUES(DimDate[year]), DimGDP[year]))
+
+// --- Cross-domain: Pearson correlation of daily trips vs daily PM2.5 ---
+Corr Trips vs PM25 =
+VAR t =
+    FILTER(
+        ADDCOLUMNS(VALUES(DimDate[date]), "x", [Trips], "y", [PM25 Avg]),
+        NOT ISBLANK([x]) && NOT ISBLANK([y])
+    )
+VAR mx = AVERAGEX(t, [x])
+VAR my = AVERAGEX(t, [y])
+VAR cov = SUMX(t, ([x] - mx) * ([y] - my))
+VAR sx = SQRT(SUMX(t, ([x] - mx) ^ 2))
+VAR sy = SQRT(SUMX(t, ([y] - my) ^ 2))
+RETURN DIVIDE(cov, sx * sy)
