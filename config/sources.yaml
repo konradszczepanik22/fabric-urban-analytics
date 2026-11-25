@@ -1,29 +1,3 @@
-# =====================================================================
-# Source registry for the Urban Mobility & Air Quality lakehouse.
-#
-# Every external source is declared here. Two kinds of loaders exist:
-#
-#   loader: generic  -> ingested by notebook nb_bronze_generic, which reads
-#                       this file at run time. Adding a new source of a
-#                       supported format needs NO code change: add an entry,
-#                       upload this file to lh_bronze/Files/config/ and the
-#                       next pl_master run picks it up.
-#   loader: <item>   -> source with logic that does not fit the generic
-#                       loader (pagination, rate limits, binary downloads,
-#                       spatial files). The value names the Fabric item that
-#                       ingests it. Kept here so the registry is complete.
-#
-# Supported formats for loader: generic
-#   csv          - CSV file / CSV API response
-#   json_records - JSON list of objects (optionally under record_path)
-#   json_columns - JSON object of equal-length arrays under record_path
-#                  (e.g. Open-Meteo "daily": {"time": [...], "x": [...]})
-#   parquet      - Parquet file
-#
-# Placeholders {start_date} and {end_date} in url are filled from the
-# defaults block (or from notebook parameters).
-# =====================================================================
-
 defaults:
   start_date: "2024-01-01"
   end_date: "2024-03-31"
@@ -32,10 +6,9 @@ defaults:
 
 sources:
 
-  # ---------------- sources with dedicated loaders ----------------
   - name: taxi
     enabled: true
-    loader: pl_ingest_taxi            # Data Factory pipeline (ForEach + Copy)
+    loader: pl_ingest_taxi
     format: parquet
     url: https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{month}.parquet
     target: Files/raw/taxi
@@ -51,7 +24,7 @@ sources:
 
   - name: openaq
     enabled: true
-    loader: nb_bronze_openaq          # REST API, X-API-Key, 60 req/min
+    loader: nb_bronze_openaq
     format: json_records
     url: https://api.openaq.org/v3
     bbox: "-74.26,40.49,-73.70,40.92"
@@ -61,7 +34,7 @@ sources:
 
   - name: gdp
     enabled: true
-    loader: df_ingest_macro           # Dataflow Gen2
+    loader: df_ingest_macro
     format: json_records
     url: https://api.worldbank.org/v2/country/{countries}/indicator/NY.GDP.MKTP.CD?format=json
     target: dbo.bronze_gdp
@@ -73,9 +46,6 @@ sources:
     url: https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A?format=csvdata&startPeriod=2015-01-01
     target: dbo.bronze_fx
 
-  # ---------------- sources handled by the generic loader ----------------
-  # Example of extending the platform without new code:
-  # daily NYC weather from Open-Meteo (free, no API key).
   - name: weather
     enabled: true
     loader: generic
