@@ -1,0 +1,211 @@
+{
+    "name": "pl_master",
+    "objectId": "9a84e14a-42fb-4523-826f-6462bf7e5674",
+    "properties": {
+        "activities": [
+            {
+                "name": "Ingest taxi",
+                "type": "InvokePipeline",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "waitOnCompletion": true,
+                    "operationType": "InvokeFabricPipeline",
+                    "pipelineId": "21a83286-4fdf-405f-8cc7-493df15a4aed",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b",
+                    "parameters": {
+                        "months": [
+                            "2024-01",
+                            "2024-02",
+                            "2024-03"
+                        ]
+                    }
+                },
+                "externalReferences": {
+                    "connection": "4583345d-6ef7-4d68-b593-b592b3fe6191"
+                }
+            },
+            {
+                "name": "Ingest GDP and FX",
+                "type": "RefreshDataflow",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "dataflowId": "5c77f683-ed27-4276-bb8f-553eda630d27",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b",
+                    "notifyOption": "NoNotification",
+                    "dataflowType": "DataflowFabric",
+                    "executeMashupQueriesOnly": true
+                }
+            },
+            {
+                "name": "Ingest OpenAQ",
+                "type": "TridentNotebook",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "d62fed3b-e081-48be-9ef1-814326d52768",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b"
+                }
+            },
+            {
+                "name": "Silver taxi",
+                "type": "TridentNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "Ingest taxi",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Ingest OpenAQ",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Ingest GDP and FX",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    },
+                    {
+                        "activity": "Ingest generic sources",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "ca70e792-5b45-44d9-9cfd-a71dab33df7d",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b"
+                }
+            },
+            {
+                "name": "Silver reference",
+                "type": "TridentNotebook",
+                "dependsOn": [
+                    {
+                        "activity": "Silver taxi",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "d118b746-586b-4d4d-86c9-8372a55fe92e",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b",
+                    "parameters": {
+                        "_inlineInstallationEnabled": {
+                            "value": true,
+                            "type": "bool"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Load gold",
+                "type": "SqlServerStoredProcedure",
+                "dependsOn": [
+                    {
+                        "activity": "Silver reference",
+                        "dependencyConditions": [
+                            "Succeeded"
+                        ]
+                    }
+                ],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "storedProcedureName": "dbo.sp_load_gold"
+                },
+                "linkedService": {
+                    "name": "wh_gold",
+                    "properties": {
+                        "annotations": [],
+                        "type": "DataWarehouse",
+                        "typeProperties": {
+                            "endpoint": "7g7hckythmzejnpud5nmej4nbq-dorim243yhqu5abqd3estklvhm.datawarehouse.fabric.microsoft.com",
+                            "artifactId": "b8b50acf-3d05-416e-a5f4-242a64a2cc03",
+                            "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b"
+                        }
+                    }
+                }
+            },
+            {
+                "name": "Ingest generic sources",
+                "type": "TridentNotebook",
+                "dependsOn": [],
+                "policy": {
+                    "timeout": "0.12:00:00",
+                    "retry": 0,
+                    "retryIntervalInSeconds": 30,
+                    "secureOutput": false,
+                    "secureInput": false
+                },
+                "typeProperties": {
+                    "notebookId": "d493f29b-6dd0-4b8a-9f22-d2575b1d4b01",
+                    "workspaceId": "6b86a21b-c19b-4ee1-8030-1ec929a9753b",
+                    "parameters": {
+                        "config_path": {
+                            "value": "/lakehouse/default/Files/config/sources.yaml",
+                            "type": "string"
+                        },
+                        "start_date": {
+                            "value": "",
+                            "type": "string"
+                        },
+                        "end_date": {
+                            "value": "",
+                            "type": "string"
+                        },
+                        "only_source": {
+                            "value": "",
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        ],
+        "lastModifiedByObjectId": "75eb1e1d-c98b-41b6-83dd-94aa9ac38f85",
+        "lastPublishTime": "2026-11-25T10:02:27Z"
+    }
+}

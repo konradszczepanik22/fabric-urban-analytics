@@ -1,0 +1,88 @@
+# =====================================================================
+# Source registry for the Urban Mobility & Air Quality lakehouse.
+#
+# Every external source is declared here. Two kinds of loaders exist:
+#
+#   loader: generic  -> ingested by notebook nb_bronze_generic, which reads
+#                       this file at run time. Adding a new source of a
+#                       supported format needs NO code change: add an entry,
+#                       upload this file to lh_bronze/Files/config/ and the
+#                       next pl_master run picks it up.
+#   loader: <item>   -> source with logic that does not fit the generic
+#                       loader (pagination, rate limits, binary downloads,
+#                       spatial files). The value names the Fabric item that
+#                       ingests it. Kept here so the registry is complete.
+#
+# Supported formats for loader: generic
+#   csv          - CSV file / CSV API response
+#   json_records - JSON list of objects (optionally under record_path)
+#   json_columns - JSON object of equal-length arrays under record_path
+#                  (e.g. Open-Meteo "daily": {"time": [...], "x": [...]})
+#   parquet      - Parquet file
+#
+# Placeholders {start_date} and {end_date} in url are filled from the
+# defaults block (or from notebook parameters).
+# =====================================================================
+
+defaults:
+  start_date: "2024-01-01"
+  end_date: "2024-03-31"
+  bronze_lakehouse: lh_bronze
+  raw_root: Files/raw
+
+sources:
+
+  # ---------------- sources with dedicated loaders ----------------
+  - name: taxi
+    enabled: true
+    loader: pl_ingest_taxi            # Data Factory pipeline (ForEach + Copy)
+    format: parquet
+    url: https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_{month}.parquet
+    target: Files/raw/taxi
+    schedule: daily (via pl_master)
+    owner: data-engineering
+
+  - name: taxi_zones
+    enabled: true
+    loader: pl_ingest_taxi
+    format: csv + shapefile (zip)
+    url: https://d37ci6vzurychx.cloudfront.net/misc/
+    target: Files/raw/taxi_zones
+
+  - name: openaq
+    enabled: true
+    loader: nb_bronze_openaq          # REST API, X-API-Key, 60 req/min
+    format: json_records
+    url: https://api.openaq.org/v3
+    bbox: "-74.26,40.49,-73.70,40.92"
+    parameters: [pm25, no2]
+    target: dbo.bronze_openaq, dbo.bronze_openaq_sensors
+    secret: OpenAQ API key (never committed to Git)
+
+  - name: gdp
+    enabled: true
+    loader: df_ingest_macro           # Dataflow Gen2
+    format: json_records
+    url: https://api.worldbank.org/v2/country/{countries}/indicator/NY.GDP.MKTP.CD?format=json
+    target: dbo.bronze_gdp
+
+  - name: fx
+    enabled: true
+    loader: df_ingest_macro
+    format: csv
+    url: https://data-api.ecb.europa.eu/service/data/EXR/D.USD.EUR.SP00.A?format=csvdata&startPeriod=2015-01-01
+    target: dbo.bronze_fx
+
+  # ---------------- sources handled by the generic loader ----------------
+  # Example of extending the platform without new code:
+  # daily NYC weather from Open-Meteo (free, no API key).
+  - name: weather
+    enabled: true
+    loader: generic
+    format: json_columns
+    record_path: daily
+    url: >-
+      https://archive-api.open-meteo.com/v1/archive?latitude=40.7128&longitude=-74.0060&start_date={start_date}&end_date={end_date}&daily=temperature_2m_mean,precipitation_sum,wind_speed_10m_max&timezone=America%2FNew_York
+    target_table: bronze_weather
+    write_mode: overwrite
+    owner: data-engineering
